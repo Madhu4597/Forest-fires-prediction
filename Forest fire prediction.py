@@ -1,74 +1,49 @@
-# %% [markdown]
-# Forest_Fires Prediction (Cleaned Version)
-
-# %%
-pip install -U pandasql
-
-# %%
-#importing the libraries
+# app.py
+import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-#ignore harmless warnings
-import warnings
-warnings.filterwarnings("ignore")
-# set to display all the columns in dataset
-pd.set_option("display.max_columns",None)
-#to run sql quries on data frame
-import pandasql as psql
 
-# %%
-#loading the dataset
-forest_fires=pd.read_csv(r"C:\22B91A5740\Projects\forestfires(ISRO).csv",header=0)
-#creating the backup file for the dataset
-forest_fires_bk=forest_fires.copy()
-forest_fires.head()
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
 
-# %%
-#checking the first 5 records
-forest_fires.head()
+from sklearn.metrics import (
+    classification_report, confusion_matrix, roc_auc_score,
+    average_precision_score, precision_recall_curve
+)
 
-# %%
-#checking the null values in the dataset
-forest_fires.isnull().sum()
+from imblearn.over_sampling import RandomOverSampler
 
-# %%
-#checking the duplicate values in the dataset
-forest_fires.duplicated().any()
+st.set_page_config(page_title="Forest Fires Prediction", layout="wide")
+st.title("Forest Fires Prediction")
 
-# %%
-#Display the unique values of all the variables 
-forest_fires.nunique()
+# -------------------
+# 1) Load dataset
+# -------------------
+DATA_PATH = st.sidebar.text_input("CSV path", "forestfires(ISRO).csv")
+@st.cache_data
+def load_data(path):
+    df = pd.read_csv(path)
+    return df
 
-# %%
-#display the unique values by count for 'Status'
-forest_fires['Status'].value_counts()
+try:
+    forest_fires = load_data(DATA_PATH)
+    st.write("Dataset shape:", forest_fires.shape)
+    st.dataframe(forest_fires.head(), use_container_width=True)
+except Exception as e:
+    st.error(f"Could not load dataset: {e}")
+    st.stop()
 
-# %%
-#Count the target or dependent variable by '0' and '1' and their proportion
-#(> 10:1, then the dataset is imbalance data)
-Status_count=forest_fires.Status.value_counts()
-print("Class 0: ",Status_count[0])
-print("Class 1: ",Status_count[1])
-print("Proportion: ",round(Status_count[1]/Status_count[0],2),':1')
-print("Total records: ",len(forest_fires))
+if "Status" not in forest_fires.columns:
+    st.error("Target column 'Status' not found in dataset.")
+    st.stop()
 
-# %%
-#info of the dataset
-forest_fires.info()
-
-# %%
-forest_fires.head()
-
-# %%
-# ---- Cell 13 replacement: cyclical encoding for month/day ----
-import numpy as np
-import pandas as pd
-
-# operate on a copy then overwrite to be safe
-df = forest_fires.copy()
-
+# -------------------
+# 2) Cyclical encoding for month/day
+# -------------------
 month_map = {'jan':1,'feb':2,'mar':3,'apr':4,'may':5,'jun':6,
              'jul':7,'aug':8,'sep':9,'oct':10,'nov':11,'dec':12}
 day_map = {'mon':1,'tue':2,'wed':3,'thu':4,'fri':5,'sat':6,'sun':7}
@@ -93,877 +68,149 @@ def to_day_num(v):
     except:
         return np.nan
 
-df['month_num'] = df['month'].apply(to_month_num)
-df['day_num']   = df['day'].apply(to_day_num)
-
-# cyclical transforms
-df['month_sin'] = np.sin(2 * np.pi * df['month_num'] / 12)
-df['month_cos'] = np.cos(2 * np.pi * df['month_num'] / 12)
-df['day_sin']   = np.sin(2 * np.pi * df['day_num'] / 7)
-df['day_cos']   = np.cos(2 * np.pi * df['day_num'] / 7)
-
-# drop originals and temporary numeric cols
-df.drop(columns=['month','day','month_num','day_num'], inplace=True)
-
-forest_fires = df  # overwrite original DF for downstream cells
-print("Cyclical month/day features added. New shape:", forest_fires.shape)
-
-
-# %%
-forest_fires.info()
-
-# %%
-#display the Descriptive statistics
-forest_fires.describe()
-
-# %%
-#Identify the independent and Target(dependent) variables
-IndepVar=[]
-for col in forest_fires.columns:
-    if col!='Status':
-        IndepVar.append(col)
-TargetVar='Status'
-x=forest_fires[IndepVar]
-y=forest_fires[TargetVar]
-
-# %%
-# Random oversampling can be implemented using the RandomOverSampler class
-from imblearn.over_sampling import RandomOverSampler
-oversample = RandomOverSampler(sampling_strategy=0.125)
-x_over,y_over = oversample.fit_resample(x,y)
-print(x_over.shape)
-print(y_over.shape)
-
-# %%
-# Splitting the dataset into train and test
-from sklearn.model_selection import train_test_split
-x_train, x_test, y_train, y_test = train_test_split(x_over, y_over, test_size = 0.30, random_state = 42)
-# Display the shape
-x_train.shape, x_test.shape, y_train.shape, y_test.shape
-
-# %%
-from sklearn.preprocessing import MinMaxScaler
-scaler=MinMaxScaler(feature_range=(0,1))
-x_train=scaler.fit_transform(x_train)
-x_train=pd.DataFrame(x_train)
-x_test=scaler.fit_transform(x_test)
-x_test=pd.DataFrame(x_test)
-
-# %%
-Status_count=y_train.value_counts()
-print("Proportion: ",round(Status_count[1]/Status_count[0],2),':1')
-
-# %%
-KNN_Results=pd.read_csv(r"C:\22B91A5740\Projects\KNN_Results.csv",header=0)
-KNN_Results.head()
-
-# %% [markdown]
-# # KNN algorithm 
-
-# %%
-# Bild KNN Model
-
-from sklearn.neighbors import KNeighborsClassifier
-
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
-
-import sklearn.metrics as metrics
-
-from sklearn.metrics import roc_curve, roc_auc_score
-
-accuracy = []
-
-for a in range(1, 21, 1):
-   
-    k = a
-   
-    # Build the model
-   
-    ModelKNN = KNeighborsClassifier(n_neighbors=k)
-   
-    # Train the model
-   
-    ModelKNN.fit(x_train, y_train)
-   
-    # Predict the model
-   
-    y_pred = ModelKNN.predict(x_test)
-    y_pred_prob = ModelKNN.predict_proba(x_test)
-   
-    print('KNN_K_value = ', a)
-   
-    # Print the model name
-   
-    print('Model Name: ', ModelKNN)
-   
-    # confusion matrix in sklearn
-   
-    from sklearn.metrics import confusion_matrix
-    from sklearn.metrics import classification_report
-   
-    # actual values
-   
-    actual = y_test
-   
-    # predicted values
-   
-    predicted = y_pred
-   
-    # confusion matrix
-   
-    matrix = confusion_matrix(actual,predicted, labels=[1,0],sample_weight=None, normalize=None)
-    print('Confusion matrix : \n', matrix)
-   
-    # outcome values order in sklearn
-   
-    tp, fn, fp, tn = confusion_matrix(actual,predicted,labels=[1,0]).reshape(-1)
-    print('Outcome values : \n', tp, fn, fp, tn)
-   
-    # classification report for precision, recall f1-score and accuracy
-   
-    C_Report = classification_report(actual,predicted,labels=[1,0])
-   
-    print('Classification report : \n', C_Report)
-   
-    # calculating the metrics
-   
-    sensitivity = round(tp/(tp+fn), 3);
-    specificity = round(tn/(tn+fp), 3);
-    accuracy = round((tp+tn)/(tp+fp+tn+fn), 3);
-    balanced_accuracy = round((sensitivity+specificity)/2, 3);
-   
-    precision = round(tp/(tp+fp), 3);
-    f1Score = round((2*tp/(2*tp + fp + fn)), 3);
-   
-    # Matthews Correlation Coefficient (MCC). Range of values of MCC lie between -1 to +1.
-    # A model with a score of +1 is a perfect model and -1 is a poor model
-   
-    from math import sqrt
-   
-    mx = (tp+fp) * (tp+fn) * (tn+fp) * (tn+fn)
-    MCC = round(((tp * tn) - (fp * fn)) / sqrt(mx), 3)
-   
-    print('Accuracy :', round(accuracy*100, 2),'%')
-    print('Precision :', round(precision*100, 2),'%')
-    print('Recall :', round(sensitivity*100,2), '%')
-    print('F1 Score :', f1Score)
-    print('Specificity or True Negative Rate :', round(specificity*100,2), '%'  )
-    print('Balanced Accuracy :', round(balanced_accuracy*100, 2),'%')
-    print('MCC :', MCC)
-   
-    # Area under ROC curve
-   
-    from sklearn.metrics import roc_curve, roc_auc_score
-   
-    print('roc_auc_score:', round(roc_auc_score(actual, predicted), 3))
-   
-    # ROC Curve
-   
-    from sklearn.metrics import roc_auc_score
-    from sklearn.metrics import roc_curve
-    model_roc_auc = roc_auc_score(actual, predicted)
-    fpr, tpr, thresholds = roc_curve(actual, ModelKNN.predict_proba(x_test)[:,1])
-    plt.figure()
-    # plt.plot(fpr, tpr, label='Logistic Regression (area = %0.2f)' % logit_roc_auc)
-    plt.plot(fpr, tpr, label= 'Classification Model' % model_roc_auc)
-    plt.plot([0, 1], [0, 1],'r--')
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver operating characteristic')
-    plt.legend(loc="lower right")
-    #plt.savefig('Log_ROC')
-    plt.show()
-    #------------------------------------------------------------------------------
-    new_row = {'Model Name' : ModelKNN,
-               'KNN K Value' : a,
-               'True_Positive' : tp,
-               'False_Negative' : fn,
-               'False_Positive' : fp,
-               'True_Negative' : tn,
-               'Accuracy' : accuracy,
-               'Precision' : precision,
-               'Recall' : sensitivity,
-               'F1 Score' : f1Score,
-               'Specificity' : specificity,
-               'MCC':MCC,
-               'ROC_AUC_Score':roc_auc_score(actual, predicted),
-               'Balanced Accuracy':balanced_accuracy}
-    KNN_Results = pd.concat([KNN_Results, pd.DataFrame([new_row])], ignore_index=True)
-
-
-    #------KNN_Results------------------------------------------------------------------------
-
-# %%
-KNN_Results.head(20)
-
-# %%
-EMResults1=pd.read_csv(r"C:\22B91A5740\Projects\EMResults.csv",header=0)
-EMResults1.head()
-
-# %% [markdown]
-# # SVM Linear kernel
-
-# %%
-# Training the SVM algorithm with train dataset
-
-from sklearn.svm import SVC
-
-ModelSVM1 = SVC(C=1.0, kernel='linear', degree=3, gamma='scale', coef0=0.0, shrinking=True, 
-                probability=True, tol=0.001, cache_size=200, class_weight=None, verbose=False, 
-                max_iter=- 1, decision_function_shape='ovr', break_ties=False, random_state=None)
-
-# Train the model with train data 
-
-ModelSVM1 = ModelSVM1.fit(x_train, y_train)
-
-# Predict the model with test data set
-
-y_pred = ModelSVM1.predict(x_test)
-y_pred_prob = ModelSVM1.predict_proba(x_test)
-
-# Print the model name
-    
-print('Model Name: ', "SVM - Linear")
-
-# Confusion matrix in sklearn
-
-from sklearn.metrics import confusion_matrix
-from sklearn.metrics import classification_report
-
-# actual values
-
-actual = y_test
-
-# predicted values
-
-predicted = y_pred
-
-# confusion matrix
-
-matrix = confusion_matrix(actual,predicted, labels=[1,0],sample_weight=None, normalize=None)
-print('Confusion matrix : \n', matrix)
-
-# outcome values order in sklearn
-
-tp, fn, fp, tn = confusion_matrix(actual,predicted,labels=[1,0]).reshape(-1)
-print('Outcome values : \n', tp, fn, fp, tn)
-
-# classification report for precision, recall f1-score and accuracy
-
-C_Report = classification_report(actual,predicted,labels=[1,0])
-
-print('Classification report : \n', C_Report)
-
-# calculating the metrics
-
-sensitivity = round(tp/(tp+fn), 3);
-specificity = round(tn/(tn+fp), 3);
-accuracy = round((tp+tn)/(tp+fp+tn+fn), 3);
-balanced_accuracy = round((sensitivity+specificity)/2, 3);
-precision = round(tp/(tp+fp), 3);
-f1Score = round((2*tp/(2*tp + fp + fn)), 3);
-
-# Matthews Correlation Coefficient (MCC). Range of values of MCC lie between -1 to +1. 
-# A model with a score of +1 is a perfect model and -1 is a poor model
-
-from math import sqrt
-
-mx = (tp+fp) * (tp+fn) * (tn+fp) * (tn+fn)
-MCC = round(((tp * tn) - (fp * fn)) / sqrt(mx), 3)
-
-print('Accuracy :', round(accuracy*100, 2),'%')
-print('Precision :', round(precision*100, 2),'%')
-print('Recall :', round(sensitivity*100,2), '%')
-print('F1 Score :', f1Score)
-print('Specificity or True Negative Rate :', round(specificity*100,2), '%'  )
-print('Balanced Accuracy :', round(balanced_accuracy*100, 2),'%')
-print('MCC :', MCC)
-
-# Area under ROC curve 
-
-from sklearn.metrics import roc_curve, roc_auc_score
-
-print('roc_auc_score:', round(roc_auc_score(actual, predicted), 3))
-
-# ROC Curve
-
-from sklearn.metrics import roc_auc_score
-from sklearn.metrics import roc_curve
-model_roc_auc = roc_auc_score(actual, predicted)
-fpr, tpr, thresholds = roc_curve(actual,ModelSVM1.predict_proba(x_test)[:,1])
-plt.figure()
-# plt.plot(fpr, tpr, label='Logistic Regression (area = %0.2f)' % logit_roc_auc)
-plt.plot(fpr, tpr, label= 'Classification Model' % model_roc_auc)
-plt.plot([0, 1], [0, 1],'r--')
-plt.xlim([0.0, 1.0])
-plt.ylim([0.0, 1.05])
-plt.xlabel('False Positive Rate')
-plt.ylabel('True Positive Rate')
-plt.title('Receiver operating characteristic')
-plt.legend(loc="lower right")
-plt.savefig('Log_ROC')
-plt.show() 
-print('-----------------------------------------------------------------------------------------------------')
-#---
-new_row = {'Model Name' : "SVM - Linear",
-            'True_Positive' : tp, 
-            'False_Negative' : fn, 
-            'False_Positive' : fp,
-            'True_Negative' : tn,
-            'Accuracy' : accuracy,
-            'Precision' : precision,
-            'Recall' : sensitivity,
-            'F1 Score' : f1Score,
-            'Specificity' : specificity,
-            'MCC':MCC,
-            'ROC_AUC_Score':roc_auc_score(actual, predicted),
-            'Balanced Accuracy':balanced_accuracy}
-EMResults1= pd.concat([EMResults1, pd.DataFrame([new_row])], ignore_index=True)
-#-------------------------------------------------------------------------------------------------------------
-
-# %% [markdown]
-# # SVM -Polynomial
-
-# %%
-# Training the SVM algorithm
-
-from sklearn.svm import SVC
-
-ModelSVMPoly = SVC(kernel='poly', degree=2, probability=True)
-
-# Train the model
-
-ModelSVMPoly.fit(x_train, y_train)
-
-# Predict the model with test data set
-
-y_pred = ModelSVMPoly.predict(x_test)
-y_pred_prob = ModelSVMPoly.predict_proba(x_test)
-
-# Print the model name
-    
-print('Model Name: ', "SVM - Polynominal")
-
-# Confusion matrix in sklearn
-
-from sklearn.metrics import confusion_matrix
-from sklearn.metrics import classification_report
-
-# actual values
-
-actual = y_test
-
-# predicted values
-
-predicted = y_pred
-
-# confusion matrix
-
-matrix = confusion_matrix(actual,predicted, labels=[1,0],sample_weight=None, normalize=None)
-print('Confusion matrix : \n', matrix)
-
-# outcome values order in sklearn
-
-tp, fn, fp, tn = confusion_matrix(actual,predicted,labels=[1,0]).reshape(-1)
-print('Outcome values : \n', tp, fn, fp, tn)
-
-# classification report for precision, recall f1-score and accuracy
-
-C_Report = classification_report(actual,predicted,labels=[1,0])
-
-print('Classification report : \n', C_Report)
-
-# calculating the metrics
-
-sensitivity = round(tp/(tp+fn), 3);
-specificity = round(tn/(tn+fp), 3);
-accuracy = round((tp+tn)/(tp+fp+tn+fn), 3);
-balanced_accuracy = round((sensitivity+specificity)/2, 3);
-precision = round(tp/(tp+fp), 3);
-f1Score = round((2*tp/(2*tp + fp + fn)), 3);
-
-# Matthews Correlation Coefficient (MCC). Range of values of MCC lie between -1 to +1. 
-# A model with a score of +1 is a perfect model and -1 is a poor model
-
-from math import sqrt
-
-mx = (tp+fp) * (tp+fn) * (tn+fp) * (tn+fn)
-MCC = round(((tp * tn) - (fp * fn)) / sqrt(mx), 3)
-
-print('Accuracy :', round(accuracy*100, 2),'%')
-print('Precision :', round(precision*100, 2),'%')
-print('Recall :', round(sensitivity*100,2), '%')
-print('F1 Score :', f1Score)
-print('Specificity or True Negative Rate :', round(specificity*100,2), '%'  )
-print('Balanced Accuracy :', round(balanced_accuracy*100, 2),'%')
-print('MCC :', MCC)
-
-# Area under ROC curve 
-
-from sklearn.metrics import roc_curve, roc_auc_score
-
-print('roc_auc_score:', round(roc_auc_score(y_test, y_pred), 3))
-
-# ROC Curve
-
-from sklearn.metrics import roc_auc_score
-from sklearn.metrics import roc_curve
-logit_roc_auc = roc_auc_score(y_test, y_pred)
-fpr, tpr, thresholds = roc_curve(y_test,ModelSVMPoly.predict_proba(x_test)[:,1])
-plt.figure()
-# plt.plot
-plt.plot(fpr, tpr, label= 'Classification Model' % logit_roc_auc)
-plt.plot([0, 1], [0, 1],'r--')
-plt.xlim([0.0, 1.0])
-plt.ylim([0.0, 1.05])
-plt.xlabel('False Positive Rate')
-plt.ylabel('True Positive Rate')
-plt.title('Receiver operating characteristic')
-plt.legend(loc="lower right")
-plt.savefig('Log_ROC')
-plt.show() 
-print('-----------------------------------------------------------------------------------------------------')
-#---
-new_row = {'Model Name' : "SVM - Polynominal",
-            'True_Positive' : tp, 
-            'False_Negative' : fn, 
-            'False_Positive' : fp,
-            'True_Negative' : tn,
-            'Accuracy' : accuracy,
-            'Precision' : precision,
-            'Recall' : sensitivity,
-            'F1 Score' : f1Score,
-            'Specificity' : specificity,
-            'MCC':MCC,
-            'ROC_AUC_Score':roc_auc_score(actual, predicted),
-            'Balanced Accuracy':balanced_accuracy}
-EMResults1 = pd.concat([EMResults1, pd.DataFrame([new_row])], ignore_index=True)
-#-----------------------------------------------------------------------------------------------
-
-# %% [markdown]
-# # SVM sigmoid kernel
-
-# %%
-
-# Training the SVM algorithm
-
-from sklearn.svm import SVC
-
-ModelSVMSig = SVC(kernel='sigmoid', random_state = 42, class_weight='balanced', probability=True)
-
-# Train the model
-
-ModelSVMSig.fit(x_train, y_train)
-
-# Predict the model with test data set
-
-y_pred = ModelSVMSig.predict(x_test)
-y_pred_prob = ModelSVMSig.predict_proba(x_test)
-
-# Print the model name
-    
-print('Model Name: ', "SVM - Sigmoid")
-
-# Confusion matrix in sklearn
-
-from sklearn.metrics import confusion_matrix
-from sklearn.metrics import classification_report
-
-# actual values
-
-actual = y_test
-
-# predicted values
-
-predicted = y_pred
-
-# confusion matrix
-
-matrix = confusion_matrix(actual,predicted, labels=[1,0],sample_weight=None, normalize=None)
-print('Confusion matrix : \n', matrix)
-
-# outcome values order in sklearn
-
-tp, fn, fp, tn = confusion_matrix(actual,predicted,labels=[1,0]).reshape(-1)
-print('Outcome values : \n', tp, fn, fp, tn)
-
-# classification report for precision, recall f1-score and accuracy
-
-C_Report = classification_report(actual,predicted,labels=[1,0])
-
-print('Classification report : \n', C_Report)
-
-# calculating the metrics
-
-sensitivity = round(tp/(tp+fn), 3);
-specificity = round(tn/(tn+fp), 3);
-accuracy = round((tp+tn)/(tp+fp+tn+fn), 3);
-balanced_accuracy = round((sensitivity+specificity)/2, 3);
-precision = round(tp/(tp+fp), 3);
-f1Score = round((2*tp/(2*tp + fp + fn)), 3);
-
-# Matthews Correlation Coefficient (MCC). Range of values of MCC lie between -1 to +1. 
-# A model with a score of +1 is a perfect model and -1 is a poor model
-
-from math import sqrt
-
-mx = (tp+fp) * (tp+fn) * (tn+fp) * (tn+fn)
-MCC = round(((tp * tn) - (fp * fn)) / sqrt(mx), 3)
-
-print('Accuracy :', round(accuracy*100, 2),'%')
-print('Precision :', round(precision*100, 2),'%')
-print('Recall :', round(sensitivity*100,2), '%')
-print('F1 Score :', f1Score)
-print('Specificity or True Negative Rate :', round(specificity*100,2), '%'  )
-print('Balanced Accuracy :', round(balanced_accuracy*100, 2),'%')
-print('MCC :', MCC)
-
-# Area under ROC curve 
-
-from sklearn.metrics import roc_curve, roc_auc_score
-
-print('roc_auc_score:', round(roc_auc_score(y_test, y_pred), 3))
-
-# ROC Curve
-
-from sklearn.metrics import roc_auc_score
-from sklearn.metrics import roc_curve
-logit_roc_auc = roc_auc_score(y_test, y_pred)
-fpr, tpr, thresholds = roc_curve(y_test,ModelSVMSig.predict_proba(x_test)[:,1])
-plt.figure()
-# plt.plot
-plt.plot(fpr, tpr, label= 'Classification Model' % logit_roc_auc)
-plt.plot([0, 1], [0, 1],'r--')
-plt.xlim([0.0, 1.0])
-plt.ylim([0.0, 1.05])
-plt.xlabel('False Positive Rate')
-plt.ylabel('True Positive Rate')
-plt.title('Receiver operating characteristic')
-plt.legend(loc="lower right")
-plt.savefig('Log_ROC')
-plt.show() 
-print('-----------------------------------------------------------------------------------------------------')
-#---
-new_row = {'Model Name' : "SVM - Sigmoid",
-            'True_Positive' : tp, 
-            'False_Negative' : fn, 
-            'False_Positive' : fp,
-            'True_Negative' : tn,
-            'Accuracy' : accuracy,
-            'Precision' : precision,
-            'Recall' : sensitivity,
-            'F1 Score' : f1Score,
-            'Specificity' : specificity,
-            'MCC':MCC,
-            'ROC_AUC_Score':roc_auc_score(actual, predicted),
-            'Balanced Accuracy':balanced_accuracy}
-EMResults1 = pd.concat([EMResults1, pd.DataFrame([new_row])], ignore_index=True)
-#-----------------------------------------------------------------------------------------------------------
-
-# %% [markdown]
-# # SVM gaussian
-
-# %%
-# Training the SVM algorithm
-
-from sklearn.svm import SVC
-
-ModelSVMGaussian = SVC(kernel='rbf', random_state = 42, class_weight='balanced', probability=True)
-
-# Train the model
-
-ModelSVMGaussian.fit(x_train, y_train)
-
-# Predict the model with test data set
-
-y_pred = ModelSVMGaussian.predict(x_test)
-y_pred_prob = ModelSVMGaussian.predict_proba(x_test)
-
-# Confusion matrix in sklearn
-
-from sklearn.metrics import confusion_matrix
-from sklearn.metrics import classification_report
-
-# Print the model name
-    
-print('Model Name: ', "SVM - Gaussian")
-
-# actual values
-
-actual = y_test
-
-# predicted values
-
-predicted = y_pred
-
-# confusion matrix
-
-matrix = confusion_matrix(actual,predicted, labels=[1,0],sample_weight=None, normalize=None)
-print('Confusion matrix : \n', matrix)
-
-# outcome values order in sklearn
-
-tp, fn, fp, tn = confusion_matrix(actual,predicted,labels=[1,0]).reshape(-1)
-print('Outcome values : \n', tp, fn, fp, tn)
-
-# classification report for precision, recall f1-score and accuracy
-
-C_Report = classification_report(actual,predicted,labels=[1,0])
-
-print('Classification report : \n', C_Report)
-
-# calculating the metrics
-
-sensitivity = round(tp/(tp+fn), 3);
-specificity = round(tn/(tn+fp), 3);
-accuracy = round((tp+tn)/(tp+fp+tn+fn), 3);
-balanced_accuracy = round((sensitivity+specificity)/2, 3);
-precision = round(tp/(tp+fp), 3);
-f1Score = round((2*tp/(2*tp + fp + fn)), 3);
-
-# Matthews Correlation Coefficient (MCC). Range of values of MCC lie between -1 to +1. 
-# A model with a score of +1 is a perfect model and -1 is a poor model
-
-from math import sqrt
-
-mx = (tp+fp) * (tp+fn) * (tn+fp) * (tn+fn)
-MCC = round(((tp * tn) - (fp * fn)) / sqrt(mx), 3)
-
-print('Accuracy :', round(accuracy*100, 2),'%')
-print('Precision :', round(precision*100, 2),'%')
-print('Recall :', round(sensitivity*100,2), '%')
-print('F1 Score :', f1Score)
-print('Specificity or True Negative Rate :', round(specificity*100,2), '%'  )
-print('Balanced Accuracy :', round(balanced_accuracy*100, 2),'%')
-print('MCC :', MCC)
-
-# Area under ROC curve 
-
-from sklearn.metrics import roc_curve, roc_auc_score
-
-print('roc_auc_score:', round(roc_auc_score(y_test, y_pred), 3))
-
-# ROC Curve
-
-from sklearn.metrics import roc_auc_score
-from sklearn.metrics import roc_curve
-logit_roc_auc = roc_auc_score(y_test, y_pred)
-fpr, tpr, thresholds = roc_curve(y_test,ModelSVMGaussian.predict_proba(x_test)[:,1])
-plt.figure()
-# plt.plot
-plt.plot(fpr, tpr, label= 'Classification Model' % logit_roc_auc)
-plt.plot([0, 1], [0, 1],'r--')
-plt.xlim([0.0, 1.0])
-plt.ylim([0.0, 1.05])
-plt.xlabel('False Positive Rate')
-plt.ylabel('True Positive Rate')
-plt.title('Receiver operating characteristic')
-plt.legend(loc="lower right")
-plt.savefig('Log_ROC')
-plt.show() 
-print('-----------------------------------------------------------------------------------------------------')
-#---
-new_row = {'Model Name' : "SVM - Gaussian",
-            'True_Positive' : tp, 
-            'False_Negative' : fn, 
-            'False_Positive' : fp,
-            'True_Negative' : tn,
-            'Accuracy' : accuracy,
-            'Precision' : precision,
-            'Recall' : sensitivity,
-            'F1 Score' : f1Score,
-            'Specificity' : specificity,
-            'MCC':MCC,
-            'ROC_AUC_Score':roc_auc_score(actual, predicted),
-            'Balanced Accuracy':balanced_accuracy}
-EMResults1 = pd.concat([EMResults1, pd.DataFrame([new_row])], ignore_index=True)
-
-#---------------------------------------------------------------------------------------------------------------
-
-# %%
-EMResults1.head()
-
-# %%
-EMResults=pd.read_csv(r"C:\22B91A5740\Projects\EMResults.csv",header=0)
-EMResults.head()
-
-# %% [markdown]
-# # compare the algorithms
-
-# %%
-
-# Build the Calssification models and compare the results
-
-from sklearn.linear_model import LogisticRegression
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.ensemble import ExtraTreesClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.svm import SVC
-
-# Create objects of classification algorithm with default hyper-parameters
-
-ModelLR = LogisticRegression()
-ModelDC = DecisionTreeClassifier()
-ModelRF = RandomForestClassifier()
-ModelET = ExtraTreesClassifier()
-ModelKNN = KNeighborsClassifier(n_neighbors=5)
-ModelSVM = SVC(kernel='rbf', random_state = 42, class_weight='balanced', probability=True)
-
-# Evalution matrix for all the algorithms
-
-MM = [ModelLR, ModelDC, ModelRF, ModelET, ModelKNN, ModelSVM]
-
-for models in MM:
-    
-    # Fit the model
-    
-    models.fit(x_train, y_train)
-    
-    # Prediction
-    
-    y_pred = models.predict(x_test)
-    y_pred_prob = models.predict_proba(x_test)
-    
-    # Print the model name
-    
-    print('Model Name: ', models)
-    
-    # confusion matrix in sklearn
-
-    from sklearn.metrics import confusion_matrix
-    from sklearn.metrics import classification_report
-
-    # actual values
-
-    actual = y_test
-
-    # predicted values
-
-    predicted = y_pred
-
-    # confusion matrix
-
-    matrix = confusion_matrix(actual,predicted, labels=[1,0],sample_weight=None, normalize=None)
-    print('Confusion matrix : \n', matrix)
-
-    # outcome values order in sklearn
-
-    tp, fn, fp, tn = confusion_matrix(actual,predicted,labels=[1,0]).reshape(-1)
-    print('Outcome values : \n', tp, fn, fp, tn)
-
-    # classification report for precision, recall f1-score and accuracy
-
-    C_Report = classification_report(actual,predicted,labels=[1,0])
-
-    print('Classification report : \n', C_Report)
-
-    # calculating the metrics
-
-    sensitivity = round(tp/(tp+fn), 3);
-    specificity = round(tn/(tn+fp), 3);
-    accuracy = round((tp+tn)/(tp+fp+tn+fn), 3);
-    balanced_accuracy = round((sensitivity+specificity)/2, 3);
-    
-    precision = round(tp/(tp+fp), 3);
-    f1Score = round((2*tp/(2*tp + fp + fn)), 3);
-
-    # Matthews Correlation Coefficient (MCC). Range of values of MCC lie between -1 to +1. 
-    # A model with a score of +1 is a perfect model and -1 is a poor model
-
-    from math import sqrt
-
-    mx = (tp+fp) * (tp+fn) * (tn+fp) * (tn+fn)
-    MCC = round(((tp * tn) - (fp * fn)) / sqrt(mx), 3)
-
-    print('Accuracy :', round(accuracy*100, 2),'%')
-    print('Precision :', round(precision*100, 2),'%')
-    print('Recall :', round(sensitivity*100,2), '%')
-    print('F1 Score :', f1Score)
-    print('Specificity or True Negative Rate :', round(specificity*100,2), '%'  )
-    print('Balanced Accuracy :', round(balanced_accuracy*100, 2),'%')
-    print('MCC :', MCC)
-
-    # Area under ROC curve 
-
-    from sklearn.metrics import roc_curve, roc_auc_score
-
-    print('roc_auc_score:', round(roc_auc_score(actual, predicted), 3))
-    
-    # ROC Curve
-    
-    from sklearn.metrics import roc_auc_score
-    from sklearn.metrics import roc_curve
-    model_roc_auc = roc_auc_score(actual, predicted)
-    fpr, tpr, thresholds = roc_curve(actual, models.predict_proba(x_test)[:,1])
-    plt.figure()
-    # plt.plot(fpr, tpr, label='Logistic Regression (area = %0.2f)' % logit_roc_auc)
-    plt.plot(fpr, tpr, label= 'Classification Model' % model_roc_auc)
-    plt.plot([0, 1], [0, 1],'r--')
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver operating characteristic')
-    plt.legend(loc="lower right")
-    plt.savefig('Log_ROC')
-    plt.show()
-    print('-----------------------------------------------------------------------------------------------------')
-    #---
-    new_row = {'Model Name' : models,
-               'True_Positive' : tp, 
-               'False_Negative' : fn, 
-               'False_Positive' : fp,
-               'True_Negative' : tn,
-               'Accuracy' : accuracy,
-               'Precision' : precision,
-               'Recall' : sensitivity,
-               'F1 Score' : f1Score,
-               'Specificity' : specificity,
-               'MCC':MCC,
-               'ROC_AUC_Score':roc_auc_score(actual, predicted),
-               'Balanced Accuracy':balanced_accuracy}
-    EMResults1 = pd.concat([EMResults1, pd.DataFrame([new_row])], ignore_index=True)
-    #------------------------------------------------------------------------------------------------------------------
-
-
-# %%
-EMResults1.head(10)
-
-# %%
-#predicting the value using the decision tree
-#predict the values with KNN algorithm
-y_pred=ModelRF.predict(x_test)
-
-# %%
-#display the final results 
-Results = pd.DataFrame({'Status_A':y_test, 'Status_P':y_pred})
-#Merge two Dataframes on index of both the dataframes
-ResultsFinal = forest_fires_bk.merge(Results,left_index=True,right_index=True)
-# Calculate the %of Error
-ResultsFinal['%Error'] = ResultsFinal.apply(
-    lambda row: 0 if row['Status_A'] == 0 else round(((row['Status_A'] - row['Status_P']) / row['Status_A']) * 100, 3),axis=1)
-#display 10 records randomly
-ResultsFinal.sample(10)
-
-# %%
-
-
-# %%
-
-
-# %%
-
-
-# %%
-
-
-# %%
-
-
-# %%
-
-
-
+def add_cyc_features(df):
+    df = df.copy()
+    if "month" in df.columns:
+        df["month_num"] = df["month"].apply(to_month_num)
+        df["month_sin"] = np.sin(2 * np.pi * df["month_num"] / 12)
+        df["month_cos"] = np.cos(2 * np.pi * df["month_num"] / 12)
+    if "day" in df.columns:
+        df["day_num"] = df["day"].apply(to_day_num)
+        df["day_sin"] = np.sin(2 * np.pi * df["day_num"] / 7)
+        df["day_cos"] = np.cos(2 * np.pi * df["day_num"] / 7)
+    # drop original and temps if present
+    drop_cols = [c for c in ["month","day","month_num","day_num"] if c in df.columns]
+    df = df.drop(columns=drop_cols, errors="ignore")
+    return df
+
+forest_fires_proc = add_cyc_features(forest_fires)
+
+# -------------------
+# 3) Features/target and split (stratified)
+# -------------------
+features = [c for c in forest_fires_proc.columns if c != "Status"]
+X = forest_fires_proc[features].copy()
+y = forest_fires_proc["Status"].astype(int).copy()
+
+# basic NA fill for safety
+X = X.replace([np.inf, -np.inf], np.nan).fillna(X.median(numeric_only=True))
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.20, stratify=y, random_state=42
+)
+
+# -------------------
+# 4) Oversample TRAIN ONLY to avoid leakage
+# -------------------
+ros = RandomOverSampler(sampling_strategy=0.125, random_state=42)
+X_train_over, y_train_over = ros.fit_resample(X_train, y_train)
+
+# -------------------
+# 5) Scale numeric columns (fit on train only)
+# -------------------
+num_cols = X_train_over.select_dtypes(include=[np.number]).columns.tolist()
+scaler = MinMaxScaler()
+X_train_scaled = X_train_over.copy()
+X_test_scaled = X_test.copy()
+X_train_scaled[num_cols] = scaler.fit_transform(X_train_over[num_cols])
+X_test_scaled[num_cols] = scaler.transform(X_test[num_cols])
+
+# -------------------
+# 6) Sidebar: model + hyperparameters + threshold
+# -------------------
+st.sidebar.header("Model & Threshold")
+
+model_name = st.sidebar.selectbox(
+    "Choose model",
+    ["KNN", "SVM (RBF)", "Random Forest", "Logistic Regression"]
+)
+
+if model_name == "KNN":
+    n_neighbors = st.sidebar.slider("n_neighbors", 1, 30, 5, 1)
+    model = KNeighborsClassifier(n_neighbors=n_neighbors)
+elif model_name == "SVM (RBF)":
+    C = st.sidebar.slider("C", 0.1, 10.0, 1.0, 0.1)
+    gamma_opt = st.sidebar.selectbox("gamma", ["scale", "auto"])
+    model = SVC(kernel="rbf", C=C, gamma=gamma_opt, probability=True, class_weight="balanced", random_state=42)
+elif model_name == "Random Forest":
+    n_estimators = st.sidebar.slider("n_estimators", 100, 800, 300, 50)
+    max_depth = st.sidebar.slider("max_depth", 2, 30, 10, 1)
+    model = RandomForestClassifier(
+        n_estimators=n_estimators, max_depth=max_depth,
+        class_weight="balanced", random_state=42
+    )
+else:
+    C = st.sidebar.slider("C", 0.01, 10.0, 1.0, 0.01)
+    model = LogisticRegression(max_iter=1000, class_weight="balanced", C=C, solver="lbfgs")
+
+threshold = st.sidebar.slider("Decision threshold", 0.0, 1.0, 0.5, 0.01)
+
+# -------------------
+# 7) Train and evaluate
+# -------------------
+model.fit(X_train_scaled, y_train_over)
+proba_test = model.predict_proba(X_test_scaled)[:, 1]
+pred_default = (proba_test >= 0.5).astype(int)
+pred_thresh = (proba_test >= threshold).astype(int)
+
+col1, col2 = st.columns(2)
+with col1:
+    st.subheader("Test metrics (threshold=0.5)")
+    st.write("ROC-AUC:", round(roc_auc_score(y_test, proba_test), 3))
+    st.write("PR-AUC:", round(average_precision_score(y_test, proba_test), 3))
+    st.text(classification_report(y_test, pred_default, digits=3))
+
+with col2:
+    st.subheader(f"Test metrics (threshold={threshold:.2f})")
+    st.text(classification_report(y_test, pred_thresh, digits=3))
+
+# -------------------
+# 8) Sidebar input form for a new prediction
+# -------------------
+st.sidebar.header("Enter New Fire Conditions")
+
+# Build inputs from original dataset so users provide month/day and numbers
+orig_cols = forest_fires.columns.tolist()
+numeric_input_cols = []
+for c in orig_cols:
+    if c in ["Status","month","day"]: 
+        continue
+    if pd.api.types.is_numeric_dtype(forest_fires[c]):
+        numeric_input_cols.append(c)
+
+month_choice = st.sidebar.selectbox(
+    "month", list(month_map.keys()), index=0
+)
+day_choice = st.sidebar.selectbox(
+    "day of week", list(day_map.keys()), index=0
+)
+
+input_dict = {"month": month_choice, "day": day_choice}
+for c in numeric_input_cols:
+    col_min = float(forest_fires[c].min())
+    col_max = float(forest_fires[c].max())
+    col_mean = float(forest_fires[c].mean())
+    # choose float input if the column is float-like
+    default_step = 0.1 if (forest_fires[c].dtype.kind in "fc") else 1.0
+    val = st.sidebar.number_input(
+        c, min_value=col_min, max_value=col_max, value=col_mean, step=default_step
+    )
+    input_dict[c] = val
+
+# Build a one-row DataFrame, then apply the same cyc features and scaling
+user_raw = pd.DataFrame([input_dict])
+user_proc = add_cyc_features(user_raw)
+
+# Align columns to training features
+for col in features:
+    if col not in user_proc.columns:
+        user_proc[col] = 0.0
+user_proc = user_proc[features].copy()
+user_proc[num_cols] = scaler.transform(user_proc[num_cols])
+
+# Predict
+user_proba = model.predict_proba(user_proc)[:, 1]
+user_label = int(user_proba >= threshold)
+st.subheader("Single Prediction")
+st.write(f"Predicted probability of fire (1): {user_proba:.3f}")
+st.write(f"Predicted class at threshold {threshold:.2f}: {user_label} (1=Fire, 0=No Fire)")
