@@ -1,3 +1,28 @@
+# --- dependency bootstrap (put this at the very top of your app) ---
+import importlib, subprocess, sys
+
+def ensure(spec: str):
+    pkg = spec.split("==")
+    try:
+        importlib.import_module("sklearn" if pkg == "scikit-learn" else pkg)
+    except ImportError:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", spec])
+
+# Pin compatible versions for Streamlit Cloud
+ensure("scikit-learn==1.4.2")      # package name is scikit-learn, import is sklearn
+ensure("imbalanced-learn==0.14.0") # requires scikit-learn >= 1.4
+ensure("pandas==2.2.2")
+ensure("numpy==1.26.4")
+ensure("matplotlib==3.8.4")
+ensure("seaborn==0.13.2")
+
+# now your original imports work
+import streamlit as st
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from imblearn.over_sampling import RandomOverSampler
+# ... rest of your code ...
+
 # app.py
 import streamlit as st
 import pandas as pd
@@ -214,3 +239,4 @@ user_label = int(user_proba >= threshold)
 st.subheader("Single Prediction")
 st.write(f"Predicted probability of fire (1): {user_proba:.3f}")
 st.write(f"Predicted class at threshold {threshold:.2f}: {user_label} (1=Fire, 0=No Fire)")
+
