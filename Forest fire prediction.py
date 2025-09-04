@@ -17,7 +17,7 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score, average_precision_score, classification_report
 
-st.set_page_config(page_title="Forest Fires Prediction", layout="wide")
+st.set_page_config(page_title="https://github.com/Madhu4597/Forest-fires-prediction/blob/main/forestfires(ISRO).csv", layout="wide")
 st.title("Forest Fires Prediction")
 
 # ---------- Load data (repo file or upload) ----------
@@ -176,3 +176,4 @@ st.subheader("Prediction for input")
 st.write(f"Probability of fire (1): {user_p:.3f}")
 st.write(f"Predicted class at threshold {threshold:.2f}: {user_y} (1=Fire, 0=No Fire)")
 # ----------------------- end -----------------------
+
