@@ -16,97 +16,100 @@ _A Machine Learning Project for Wildfire Risk Estimation_
 
 ---  
 ## Overview  
-Forest Fire Prediction is a machine learning project designed to predict the probability of wildfire occurrence based on meteorological and Fire Weather Index (FWI) data such as temperature, humidity, wind speed, rainfall, and indices like FFMC, DMC, DC, and ISI.  
-The system helps in wildfire monitoring and prevention efforts by providing scalable and interpretable models, developed and tested in both VSCode and Jupyter Notebook environments.  
-This project features a Streamlit-powered user interface for real-time predictions and interactive visualizations.  
+Forest Fire Prediction is a machine learning project designed to predict the occurrence of wildfires based on meteorological and Fire Weather Index (FWI) features such as temperature, humidity, wind speed, rainfall, and indices like FFMC, DMC, DC, and ISI.  
+The system aids in wildfire risk management by providing interpretable, data-driven models. The pipeline includes preprocessing, balancing imbalanced data, training multiple classifiers, and evaluating them with detailed performance metrics.  
 
 Core goals:  
-- Efficient preprocessing of forest fire datasets, including feature scaling and encoding.  
-- Comparative evaluation of multiple ML algorithms for predictive performance.  
-- User-friendly deployment through Streamlit, enabling interactive input and real-time fire risk estimation.  
+- Efficient preprocessing with feature encoding, scaling, and balancing.  
+- Comparative evaluation of multiple ML algorithms.  
+- User-friendly deployment through Streamlit for interactive input and predictions.  
 
 ---  
 ## Features  
-- **Automated Data Preprocessing**: Handling missing values, categorical encoding (month/day), and scaling of numerical features.  
-- **Exploratory Data Analysis (EDA)**: Visual and statistical summaries of meteorological and FWI features.  
-- **Model Training & Evaluation**: Implements Logistic Regression, Decision Trees, Random Forest, K-Nearest Neighbors, and SVM.  
-- **Performance Metrics Dashboard**: Includes accuracy, precision, recall, F1-score, ROC-AUC, PR-AUC, and confusion matrix visualizations.  
-- **Hyperparameter Tuning & Error Analysis**: Optimization of model parameters and review of misclassifications.  
-- **Deployment with Streamlit**: Interactive web interface for inputting feature values or uploading datasets and obtaining predictions.  
-- **Modular Notebook & Script Design**: Clear structure in Jupyter Notebook and VSCode for easy experimentation and reproducibility.  
+- **Data Preprocessing**: Handling nulls, duplicates, class imbalance (RandomOverSampler), feature scaling, and cyclical encoding of month/day.  
+- **Exploratory Data Analysis (EDA)**: Distribution checks, class imbalance analysis, and descriptive statistics.  
+- **Model Training & Evaluation**: Implements KNN, Logistic Regression, Decision Tree, Random Forest, Extra Trees, and SVM with multiple kernels.  
+- **Performance Metrics Dashboard**: Accuracy, precision, recall, F1-score, MCC, ROC-AUC, confusion matrix, and balanced accuracy.  
+- **ROC Curve Visualizations**: Comparison of classifiers across thresholds.  
+- **Deployment with Streamlit**: Interactive web application for real-time fire risk estimation.  
 
 ---  
 ## Technologies Used  
 - **Python 3**  
-- **pandas** & **numpy** — Data manipulation and preprocessing  
-- **scikit-learn** — Model training, evaluation, and hyperparameter tuning  
-- **matplotlib** & **seaborn** — Data visualization and plotting  
-- **Jupyter Notebook** — Interactive development and experimentation  
+- **pandas** & **numpy** — Data preprocessing and analysis  
+- **scikit-learn** — Model training, evaluation, and metrics  
+- **imblearn** — Handling class imbalance with oversampling  
+- **matplotlib** & **seaborn** — Visualization and plotting  
+- **Jupyter Notebook** — Interactive model experimentation  
 - **VSCode** — Code editing and project management  
-- **Streamlit** — Deployment and interactive user interface creation  
+- **Streamlit** — Web application deployment  
 
 ---  
 ## Installation  
 1. Clone the repository:  
-    ```
+    ```bash
     git clone https://github.com/yourusername/forest-fire-prediction.git  
     cd forest-fire-prediction  
     ```  
-2. Install required dependencies:  
-    ```
+2. Install dependencies:  
+    ```bash
     pip install -r requirements.txt  
     ```  
 
 ---  
 ## Usage  
 1. Place the dataset file (e.g., `forestfires.csv`) inside the `data/` directory.  
-2. To explore and train models, launch Jupyter Notebook:  
-    ```
+2. Launch Jupyter Notebook for exploration and training:  
+    ```bash
     jupyter notebook  
     ```  
-3. Open the notebook file: `Forest-fire-prediction-project.ipynb` and run the cells sequentially to preprocess data, train models, and analyze results.  
-4. Alternatively, run Python scripts in VSCode for code-based experimentation and automation.  
-5. Findings and evaluation reports will be saved in the `results/` and visualization assets in the `assets/figures/` folders.  
+   Open `Forest-fire-prediction-project.ipynb` and run all cells.  
+3. Alternatively, run the Python script for end-to-end execution:  
+    ```bash
+    python "Forest fire prediction.py"  
+    ```  
+4. Outputs such as results tables, ROC plots, and metrics will be saved to `results/` and `assets/figures/`.  
 
 ---  
 ## Deployment  
-1. To launch the interactive Streamlit application, run:  
-    ```
+1. Run the Streamlit application locally:  
+    ```bash
     streamlit run app.py  
     ```  
-2. Use the provided UI to input meteorological attributes and obtain real-time wildfire probability predictions.  
+2. Use the app UI to enter meteorological parameters or upload a dataset to predict fire occurrence.  
 
 ---  
 ## Live Demo  
-Try the interactive web app for Forest Fire Prediction here:  
-[Forest Fire Prediction Streamlit App](#)  
+Experience the live version of the app here:  
+👉 [Forest Fire Prediction Streamlit App](https://forest-fires-prediction-jyjpnstx2tfnlbx9ktnctp.streamlit.app/)  
 
 ---  
 ## Examples  
-- **Input**: Attributes such as temperature, humidity, wind speed, rainfall, and FWI indices (FFMC, DMC, DC, ISI).  
-- **Output**: Wildfire risk prediction (`High Risk` / `Low Risk`) along with model performance visualizations.  
+- **Input**: Meteorological conditions such as temperature, relative humidity, wind speed, rainfall, and FWI indices (FFMC, DMC, DC, ISI).  
+- **Output**: Predicted wildfire risk (`High Risk` / `Low Risk`) with confidence metrics, confusion matrix, and ROC curve.  
 
 ---  
 ## Contributing  
 1. Fork the repository.  
 2. Create a feature branch:  
-    ```
+    ```bash
     git checkout -b feature/your-feature  
     ```  
 3. Commit your changes:  
-    ```
+    ```bash
     git commit -m "Add feature description"  
     ```  
 4. Push to your branch:  
-    ```
+    ```bash
     git push origin feature/your-feature  
     ```  
 5. Open a Pull Request for review.  
 
 ---  
 ## Acknowledgements  
-- UCI Forest Fires Dataset  
-- Fire Weather Index (FWI) methodology  
-- scikit-learn, pandas, numpy, matplotlib, seaborn, Streamlit  
-- Open-source ML community for resources and best practices  
----  
+- **Dataset**: UCI Forest Fires Dataset & ISRO-derived data  
+- **Fire Weather Index (FWI)** methodology for wildfire risk analysis  
+- **Libraries**: scikit-learn, imblearn, pandas, numpy, matplotlib, seaborn, Streamlit  
+- Open-source ML community for resources and inspiration  
+
+---
