@@ -1,9 +1,11 @@
+# app.py — Forest Fire Prediction with full-feature form and styled UI
+
 import base64
 import streamlit as st
 import pandas as pd
 import numpy as np
 
-# Optional oversampler; app still runs if imblearn isn’t available
+# Optional oversampler; app still runs without it
 try:
     from imblearn.over_sampling import RandomOverSampler
     HAS_IMB = True
@@ -11,109 +13,104 @@ except Exception:
     HAS_IMB = False
 
 from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
+from sklearn.impute import SimpleImputer
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import roc_auc_score, average_precision_score
 
-# -------------------- Page + CSS (hero header + button + background) --------------------
+# ---------------- Page and background ----------------
 st.set_page_config(page_title="Forest Fire Prediction", layout="wide")
 
-def set_bg(local_image_path: str):
-    try:
-        with open(local_image_path, "rb") as f:
-            data = f.read()
-        b64 = base64.b64encode(data).decode()
-        st.markdown(
-            f"""
-            <style>
-            .stApp {{
-                background-image: url("data:image/jpg;base64,{b64}");
-                background-size: cover;
-                background-position: center;
-                background-attachment: fixed;
-            }}
-            .hero {{
-                text-align: center;
-                margin-top: 0.5rem;
-                margin-bottom: 1.25rem;
-            }}
-            .hero h1 {{
-                color: #ff8c00;
-                font-size: 56px;
-                font-weight: 900;
-                margin: 0.25rem 0 0.5rem 0;
-            }}
-            .hero p {{
-                color: #222;
-                font-size: 18px;
-                margin: 0;
-            }}
-            .card {{
-                background: rgba(255,255,255,0.92);
-                padding: 1.25rem;
-                border-radius: 10px;
-                box-shadow: 0 6px 16px rgba(0,0,0,0.15);
-            }}
-            .cta-btn button {{
-                background-color: #ff8c00 !important;
-                color: #fff !important;
-                font-weight: 800 !important;
-                border-radius: 6px !important;
-                height: 48px !important;
-                width: 260px !important;
-            }}
-            .big-result {{
-                font-weight: 900;
-                font-size: 34px;
-            }}
-            .big-percent {{
-                font-weight: 900;
-                font-size: 44px;
-                color: #ff8c00;
-            }}
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-    except Exception:
-        pass
+def set_background(local_image_path: str):
+    with open(local_image_path, "rb") as f:
+        data = f.read()
+    b64 = base64.b64encode(data).decode()
+    st.markdown(
+        f"""
+        <style>
+        .stApp {{
+            background-image: url("data:image/jpg;base64,{b64}");
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }}
+        .hero {{
+            text-align: center;
+            margin-top: 1.5rem;
+            margin-bottom: 1.5rem;
+        }}
+        .title {{
+            font-size: 56px;
+            font-weight: 900;
+            color: #ff9d00;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.35);
+        }}
+        .subtitle {{
+            font-size: 18px;
+            color: #222;
+        }}
+        .panel {{
+            background: rgba(255,255,255,0.90);
+            padding: 1.25rem;
+            border-radius: 10px;
+        }}
+        .result-big {{
+            font-weight: 900;
+            font-size: 36px;
+            color: #111;
+        }}
+        .result-pct {{
+            font-weight: 900;
+            font-size: 54px;
+            color: #ff9d00;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
-# Optional background image placed in repo (you can remove if not needed)
-set_bg("images/forest_fire_bg.jpg")
+# Update this path to a local image in your repo (or leave try/except)
+BACKGROUND_IMAGE = "images/forest_fire_bg.jpg"
+try:
+    set_background(BACKGROUND_IMAGE)
+except Exception:
+    pass
 
-# -------------------- Data load --------------------
-DEFAULT_CSV = "forestfires(ISRO).csv"
+# ---------------- Data loading ----------------
 st.sidebar.header("Data source")
-src = st.sidebar.selectbox("Choose data source", ["Repository file", "Upload CSV"])
+source = st.sidebar.selectbox("Choose data source", ["Repository file", "Upload CSV"])
+
+DEFAULT_CSV = "forestfires(ISRO).csv"
 
 @st.cache_data
 def load_csv(path: str):
     return pd.read_csv(path)
 
-if src == "Repository file":
+if source == "Repository file":
     try:
         df_raw = load_csv(DEFAULT_CSV)
-    except Exception as e:
-        st.error("Could not read forestfires(ISRO).csv. Upload the CSV instead.")
-        up = st.sidebar.file_uploader("Upload CSV", type=["csv"])
-        if up is None:
+    except Exception:
+        upl = st.sidebar.file_uploader("Upload CSV", type=["csv"])
+        if upl is None:
+            st.error("Add forestfires(ISRO).csv to the repo or upload a CSV from the sidebar.")
             st.stop()
-        df_raw = pd.read_csv(up)
+        df_raw = pd.read_csv(upl)
 else:
-    up = st.sidebar.file_uploader("Upload CSV", type=["csv"])
-    if up is None:
+    upl = st.sidebar.file_uploader("Upload CSV", type=["csv"])
+    if upl is None:
         st.warning("Upload a CSV to continue.")
         st.stop()
-    df_raw = pd.read_csv(up)
+    df_raw = pd.read_csv(upl)
 
 if "Status" not in df_raw.columns:
-    st.error("Target column 'Status' not found.")
+    st.error("Target column 'Status' is missing.")
     st.stop()
 
-# -------------------- Cyclical encoding helpers (month/day) --------------------
+# ---------------- Cyclical encoding helpers ----------------
 month_map = {'jan':1,'feb':2,'mar':3,'apr':4,'may':5,'jun':6,
              'jul':7,'aug':8,'sep':9,'oct':10,'nov':11,'dec':12}
-day_map   = {'mon':1,'tue':2,'wed':3,'thu':4,'fri':5,'sat':6,'sun':7}
+day_map = {'mon':1,'tue':2,'wed':3,'thu':4,'fri':5,'sat':6,'sun':7}
 
 def to_month_num(v):
     if pd.isna(v): return np.nan
@@ -129,147 +126,136 @@ def to_day_num(v):
 
 def add_cyc_features(df):
     df = df.copy()
-    # accept various casings
-    cols = {c.lower(): c for c in df.columns}
-    if 'month' in cols:
-        c = cols['month']
-        df['month_num'] = df[c].apply(to_month_num)
-        df['month_sin'] = np.sin(2*np.pi*df['month_num']/12)
-        df['month_cos'] = np.cos(2*np.pi*df['month_num']/12)
-    if 'day' in cols:
-        c = cols['day']
-        df['day_num'] = df[c].apply(to_day_num)
-        df['day_sin'] = np.sin(2*np.pi*df['day_num']/7)
-        df['day_cos'] = np.cos(2*np.pi*df['day_num']/7)
-    # drop raw and temps if present
-    for c in ['month','day','month_num','day_num']:
-        if c in df.columns: df.drop(columns=c, inplace=True)
+    if "month" in df.columns:
+        df["month_num"] = df["month"].apply(to_month_num)
+        df["month_sin"] = np.sin(2*np.pi*df["month_num"]/12)
+        df["month_cos"] = np.cos(2*np.pi*df["month_num"]/12)
+    if "day" in df.columns:
+        df["day_num"] = df["day"].apply(to_day_num)
+        df["day_sin"] = np.sin(2*np.pi*df["day_num"]/7)
+        df["day_cos"] = np.cos(2*np.pi*df["day_num"]/7)
     return df
 
-# Preprocess training data
-df = add_cyc_features(df_raw)
+df_base = add_cyc_features(df_raw)
 
-# Separate features/target
-y = df["Status"].astype(int)
-X = df.drop(columns=["Status"])
-
-# Identify numeric and categorical features (after cyc features)
-num_cols = X.select_dtypes(include=[np.number]).columns.tolist()
-cat_cols = X.select_dtypes(exclude=[np.number]).columns.tolist()
-
-# One-hot encode categoricals for training
-X = pd.get_dummies(X, columns=cat_cols, drop_first=True)
-
-# Split (stratified) and oversample train only
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.20, stratify=y, random_state=42
+# ---------------- Hero ----------------
+st.markdown(
+    "<div class='hero'><div class='title'>Forest Fire Prediction</div>"
+    "<div class='subtitle'>Predict the probability of Forest‑Fire Occurrence</div></div>",
+    unsafe_allow_html=True,
 )
-if HAS_IMB:
-    ros = RandomOverSampler(sampling_strategy=0.125, random_state=42)
-    X_train_os, y_train_os = ros.fit_resample(X_train, y_train)
-else:
-    X_train_os, y_train_os = X_train, y_train
 
-# Scale everything (tree doesn’t need it but harmless and consistent)
-scaler = MinMaxScaler()
-X_train_sc = pd.DataFrame(scaler.fit_transform(X_train_os), columns=X_train_os.columns, index=X_train_os.index)
-X_test_sc  = pd.DataFrame(scaler.transform(X_test),      columns=X_test.columns,      index=X_test.index)
+# ---------------- Feature/target split ----------------
+target_col = "Status"
+X_full = df_base.drop(columns=[target_col])
+y = df_raw[target_col].astype(int)
 
-# Model + threshold
-st.sidebar.header("Model and threshold")
+# Identify columns
+num_cols = X_full.select_dtypes(include=[np.number]).columns.tolist()
+cat_cols = X_full.select_dtypes(exclude=[np.number]).columns.tolist()
+
+# ---------------- Sidebar model/threshold ----------------
+st.sidebar.header("Model & threshold")
 n_estimators = st.sidebar.slider("RandomForest n_estimators", 100, 800, 300, 50)
-max_depth   = st.sidebar.slider("RandomForest max_depth",     2, 30, 10, 1)
+max_depth   = st.sidebar.slider("RandomForest max_depth", 2, 30, 10, 1)
 threshold   = st.sidebar.slider("Decision threshold", 0.0, 1.0, 0.5, 0.01)
+
+# ---------------- Build preprocessing + model ----------------
+num_pipe = Pipeline([
+    ("impute", SimpleImputer(strategy="median")),
+    ("scale", MinMaxScaler()),
+])
+
+cat_pipe = Pipeline([
+    ("impute", SimpleImputer(strategy="most_frequent")),
+    ("ohe", OneHotEncoder(handle_unknown="ignore")),
+])
+
+pre = ColumnTransformer([
+    ("num", num_pipe, num_cols),
+    ("cat", cat_pipe, cat_cols),
+], remainder="drop")
 
 clf = RandomForestClassifier(
     n_estimators=n_estimators, max_depth=max_depth,
     class_weight="balanced", random_state=42
 )
-clf.fit(X_train_sc, y_train_os)
 
-# -------------------- HERO header --------------------
-st.markdown(
-    """
-    <div class="hero">
-      <h1>Forest Fire Prediction</h1>
-      <p>Predict the probability of Forest‑Fire Occurrence</p>
-    </div>
-    """,
-    unsafe_allow_html=True,
+# Fit/transform safely with stratified split and train-only resampling
+X_train, X_test, y_train, y_test = train_test_split(
+    X_full, y, test_size=0.2, stratify=y, random_state=42
 )
 
-# -------------------- Dynamic inputs for ALL features (including x,y) --------------------
-# Use 3 columns per row to reduce height
-st.markdown('<div class="card">', unsafe_allow_html=True)
-st.write("")
+if HAS_IMB:
+    # Fit the preprocessor on X_train, then oversample in transformed space for robustness
+    X_train_tr = pre.fit_transform(X_train)
+    ros = RandomOverSampler(random_state=42)
+    X_train_os, y_train_os = ros.fit_resample(X_train_tr, y_train)
+    # Train model on oversampled transformed data
+    clf.fit(X_train_os, y_train_os)
+else:
+    # Simple pipeline when imblearn isn't available
+    model = Pipeline([("pre", pre), ("clf", clf)])
+    model.fit(X_train, y_train)
 
-with st.form("all_features_form"):
-    inputs = {}
-    # Use medians/modes to propose defaults
-    medians = df_raw.median(numeric_only=True)
-    modes   = df_raw.mode(dropna=True).iloc if not df_raw.mode(dropna=True).empty else pd.Series(dtype=object)
+# ---------------- Dynamic full-feature form ----------------
+st.markdown("<div class='panel'>", unsafe_allow_html=True)
 
-    # Keep the original feature names (pre-cyc) for user inputs
-    all_feature_cols = [c for c in df_raw.columns if c != "Status"]
+# Build widgets for all feature columns in a 3-column grid
+cols = st.columns(3)
+user_row = {}
 
-    # arrange as chunks of three
-    for i in range(0, len(all_feature_cols), 3):
-        row = all_feature_cols[i:i+3]
-        cols = st.columns(len(row))
-        for c, col in zip(row, cols):
-            with col:
-                if df_raw[c].dtype.kind in "iufc":  # numeric
-                    vmin = float(np.nanmin(df_raw[c].values)) if len(df_raw[c].dropna()) else 0.0
-                    vmax = float(np.nanmax(df_raw[c].values)) if len(df_raw[c].dropna()) else 100.0
-                    vdef = float(medians.get(c, df_raw[c].dropna().mean() if len(df_raw[c].dropna()) else 0.0))
-                    step = 0.1 if df_raw[c].dtype.kind in "fc" else 1.0
-                    inputs[c] = st.number_input(c, value=vdef, min_value=vmin, max_value=vmax, step=step)
-                else:  # categorical / string
-                    cats = sorted(df_raw[c].dropna().astype(str).unique().tolist())
-                    vdef = str(modes.get(c, cats if cats else ""))
-                    inputs[c] = st.selectbox(c, cats if cats else [vdef], index=(cats.index(vdef) if vdef in cats else 0))
+for i, col in enumerate(X_full.columns):
+    with cols[i % 3]:
+        if col == "month":
+            user_row[col] = st.selectbox("month", list(month_map.keys()))
+        elif col == "day":
+            user_row[col] = st.selectbox("day", list(day_map.keys()))
+        else:
+            if pd.api.types.is_numeric_dtype(X_full[col]):
+                vmin = float(np.nanmin(pd.to_numeric(df_raw[col], errors="coerce")))
+                vmax = float(np.nanmax(pd.to_numeric(df_raw[col], errors="coerce")))
+                vmean = float(np.nanmean(pd.to_numeric(df_raw[col], errors="coerce")))
+                step = 0.1 if df_raw[col].dtype.kind in "fc" else 1.0
+                user_row[col] = st.number_input(col, value=vmean, min_value=vmin, max_value=vmax, step=step)
+            else:
+                # categorical
+                opts = sorted(list(df_raw[col].dropna().astype(str).unique()))
+                user_row[col] = st.selectbox(col, opts) if opts else st.text_input(col, "")
 
-    submit = st.form_submit_button("PREDICT PROBABILITY", use_container_width=False)
-st.markdown('</div>', unsafe_allow_html=True)
+predict_btn = st.button("PREDICT PROBABILITY", type="primary")
 
-# -------------------- Build a single-row input consistent with training --------------------
-def build_user_row(raw_inputs: dict) -> pd.DataFrame:
-    # Start from raw inputs in original schema, then apply cyc features
-    user_df = pd.DataFrame([raw_inputs])
+st.markdown("</div>", unsafe_allow_html=True)
 
-    # Ensure numeric types for numeric columns
-    for c in user_df.columns:
-        if c in df_raw.columns and df_raw[c].dtype.kind in "iufc":
-            user_df[c] = pd.to_numeric(user_df[c], errors="coerce")
+# ---------------- Prediction and big text ----------------
+if predict_btn:
+    user_df = pd.DataFrame([user_row])
 
-    # Apply cyclical encoding and drop month/day like training
+    # Add cyclical features (month/day) into the single row too
     user_df = add_cyc_features(user_df)
 
-    # One-hot encode exactly like training and align columns
-    user_proc = pd.get_dummies(user_df, columns=[col for col in user_df.columns if user_df[col].dtype == 'object'], drop_first=True)
-    user_proc = user_proc.reindex(columns=X.columns, fill_value=0.0)
-    return user_proc
+    # Align columns to training X_full columns (order matters for transformers)
+    for c in X_full.columns:
+        if c not in user_df.columns:
+            user_df[c] = np.nan
+    user_df = user_df[X_full.columns]
 
-# -------------------- Validation (AUCs only) --------------------
-proba_test = clf.predict_proba(X_test_sc)[:, 1]
-st.write(f"ROC-AUC: {roc_auc_score(y_test, proba_test):.3f}")
-st.write(f"PR-AUC:  {average_precision_score(y_test, proba_test):.3f}")
+    # Predict probability of class 1 (fire)
+    if HAS_IMB:
+        # Use the same preprocessor learned on X_train
+        user_tr = pre.transform(user_df)
+        proba = float(clf.predict_proba(user_tr)[:, 1])
+    else:
+        proba = float(model.predict_proba(user_df)[:, 1])
 
-# -------------------- Predict and show big message --------------------
-if submit:
-    user_row = build_user_row(inputs)
-    user_sc  = pd.DataFrame(scaler.transform(user_row), columns=user_row.columns)
-    p = float(clf.predict_proba(user_sc)[:, 1])  # scalar probability
-    pct = round(p * 100, 2)
-    label = "in Danger" if p >= threshold else "safe"
+    pct = proba * 100.0
+    label = "in Danger" if proba >= threshold else "safe"
 
     st.markdown(
-        f"""
-        <div style="margin-top: 1.25rem; text-align: center;">
-            <div class="big-result">Your Forest is <b>{label}</b>.</div>
-            <div class="big-result">Probability of fire occurring is</div>
-            <div class="big-percent">{pct:.2f}%</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+        f"<div class='panel' style='text-align:center;'>"
+        f"<div class='result-big'>Your Forest is {label.capitalize()}.</div>"
+        f"<div class='result-big'>Probability of fire occurring is</div>"
+        f"<div class='result-pct'>{pct:.2f}%</div>"
+        f"</div>",
+        unsafe_allow_html=True
     )
