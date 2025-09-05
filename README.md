@@ -83,7 +83,7 @@ Core goals:
 Experience the live version of the app here:  
 👉 [Forest Fire Prediction Streamlit App](https://forest-fires-prediction-jyjpnstx2tfnlbx9ktnctp.streamlit.app/)  
 
----  
+--- 
 ## Examples  
 - **Input**: Meteorological conditions such as temperature, relative humidity, wind speed, rainfall, and FWI indices (FFMC, DMC, DC, ISI).  
 - **Output**: Predicted wildfire risk (`High Risk` / `Low Risk`) with confidence metrics, confusion matrix, and ROC curve.  
